@@ -6,6 +6,7 @@ from typing import Optional
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QVBoxLayout, QWidget
 
+from mst.i18n import tr
 from mst.core.models import ObserverLocation, PassPrediction, Satellite
 from mst.ui.controller import AppController
 from mst.ui.dialogs.location_dialog import LocationDialog
@@ -29,11 +30,11 @@ class PassCard(QWidget):
         self._prediction = prediction
 
         if prediction.max_elevation_deg >= 50.0:
-            color, quality = GREEN, "SANGAT BAGUS"
+            color, quality = GREEN, tr("pass.excellent")
         elif prediction.max_elevation_deg >= 25.0:
-            color, quality = AMBER, "CUKUP TINGGI"
+            color, quality = AMBER, tr("pass.fair")
         else:
-            color, quality = TEXT_SECONDARY, "RENDAH"
+            color, quality = TEXT_SECONDARY, tr("pass.low")
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -55,19 +56,19 @@ class PassCard(QWidget):
         layout.addLayout(top)
 
         times = QHBoxLayout()
-        times.addLayout(self._column("MUNCUL (AOS)", fmt_time(prediction.aos_time_millis),
+        times.addLayout(self._column(tr("pass.aos"), fmt_time(prediction.aos_time_millis),
                                      f"Az {int(prediction.aos_azimuth_deg)}°", Qt.AlignmentFlag.AlignLeft))
-        times.addLayout(self._column("PUNCAK ELEVASI", f"{prediction.max_elevation_deg:.1f}°",
+        times.addLayout(self._column(tr("pass.peak"), f"{prediction.max_elevation_deg:.1f}°",
                                      fmt_time(prediction.max_elevation_time_millis),
                                      Qt.AlignmentFlag.AlignHCenter, value_color=color, big=True))
-        times.addLayout(self._column("HILANG (LOS)", fmt_time(prediction.los_time_millis),
+        times.addLayout(self._column(tr("pass.los"), fmt_time(prediction.los_time_millis),
                                      f"Az {int(prediction.los_azimuth_deg)}°", Qt.AlignmentFlag.AlignRight))
         layout.addLayout(times)
 
         footer = QHBoxLayout()
-        footer.addWidget(make_label(f"⏱  Durasi: {fmt_duration(prediction.duration_seconds)}", "subtitle"))
+        footer.addWidget(make_label(tr("pass.duration", d=fmt_duration(prediction.duration_seconds)), "subtitle"))
         footer.addStretch(1)
-        radar = make_button("◎  Buka Radar", "outline")
+        radar = make_button(tr("pass.open_radar"), "outline")
         radar.clicked.connect(lambda: self.open_radar.emit(self._prediction))
         footer.addWidget(radar)
         layout.addLayout(footer)
@@ -106,10 +107,10 @@ class PassesPage(QWidget):
         header = QHBoxLayout()
         titles = QVBoxLayout()
         titles.setSpacing(2)
-        titles.addWidget(make_label("Prediksi Lintasan", "title"))
-        titles.addWidget(make_label("Jadwal Satelit Melintas (48 Jam Ke Depan)", "subtitle"))
+        titles.addWidget(make_label(tr("passes.title"), "title"))
+        titles.addWidget(make_label(tr("passes.subtitle"), "subtitle"))
         header.addLayout(titles, 1)
-        refresh = make_button("⟳  Hitung Ulang", "outline")
+        refresh = make_button(tr("passes.recalc"), "outline")
         refresh.clicked.connect(controller.calculate_passes)
         header.addWidget(refresh, 0, Qt.AlignmentFlag.AlignVCenter)
         root.addLayout(header)
@@ -120,13 +121,13 @@ class PassesPage(QWidget):
         obs.setContentsMargins(16, 12, 16, 12)
         obs_text = QVBoxLayout()
         obs_text.setSpacing(2)
-        obs_text.addWidget(make_label("LOKASI PENGAMAT", "caption"))
+        obs_text.addWidget(make_label(tr("passes.observer"), "caption"))
         self._obs_name = make_label("", "heading")
         self._obs_coords = make_label("", "mono", CYAN)
         obs_text.addWidget(self._obs_name)
         obs_text.addWidget(self._obs_coords)
         obs.addLayout(obs_text, 1)
-        change = make_button("📍  Ubah Lokasi")
+        change = make_button(tr("passes.change"))
         change.clicked.connect(self._change_location)
         obs.addWidget(change)
         root.addWidget(obs_card)
@@ -135,8 +136,8 @@ class PassesPage(QWidget):
         sat_card = make_card("cardActive")
         sat = QHBoxLayout(sat_card)
         sat.setContentsMargins(16, 10, 16, 10)
-        self._sat_name = make_label("Pilih Satelit", "heading")
-        self._sat_count = make_label("0 Lintasan Terprediksi", "caption", AMBER)
+        self._sat_name = make_label(tr("passes.pick"), "heading")
+        self._sat_count = make_label(tr("passes.count", n=0), "caption", AMBER)
         sat.addWidget(make_label("🛰", None))
         sat.addWidget(self._sat_name)
         sat.addStretch(1)
@@ -182,29 +183,25 @@ class PassesPage(QWidget):
         self._obs_coords.setText(f"{observer.latitude:.4f}°, {observer.longitude:.4f}°")
 
     def _on_satellite(self, sat: Optional[Satellite]) -> None:
-        self._sat_name.setText(sat.name if sat else "Pilih Satelit")
+        self._sat_name.setText(sat.name if sat else tr("passes.pick"))
 
     def _on_calculating(self, busy: bool) -> None:
         if busy:
             clear_layout(self._list)
             self._scroll.setVisible(False)
             self._status.setVisible(True)
-            self._status.setText("Menghitung propagasi orbit...")
+            self._status.setText(tr("passes.calculating"))
 
     def _on_passes(self, passes: list[PassPrediction]) -> None:
         clear_layout(self._list)
-        self._sat_count.setText(f"{len(passes)} Lintasan Terprediksi")
+        self._sat_count.setText(tr("passes.count", n=len(passes)))
         if not passes:
             self._scroll.setVisible(False)
             self._status.setVisible(True)
             if self._controller.active_satellite is None:
-                self._status.setText("Pilih satelit dari Katalog terlebih dahulu.")
+                self._status.setText(tr("passes.need_sat"))
             else:
-                self._status.setText(
-                    "Tidak Ada Lintasan Terdeteksi\n"
-                    "Tidak ada lintasan dengan elevasi puncak ≥ 10° dalam 48 jam ke depan "
-                    "(satelit geostasioner yang selalu terlihat atau selalu di bawah cakrawala tidak punya lintasan)."
-                )
+                self._status.setText(tr("passes.none"))
             return
         self._status.setVisible(False)
         self._scroll.setVisible(True)
