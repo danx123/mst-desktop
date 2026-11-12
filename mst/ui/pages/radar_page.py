@@ -6,6 +6,7 @@ from typing import Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QSlider, QVBoxLayout, QWidget
 
+from mst.i18n import tr
 from mst.core.models import PassPrediction, SatellitePosition
 from mst.ui.controller import AppController
 from mst.ui.theme import AMBER, BORDER, CYAN, GREEN, TEXT_MUTED
@@ -30,11 +31,11 @@ class RadarPage(QWidget):
         header = QHBoxLayout()
         titles = QVBoxLayout()
         titles.setSpacing(2)
-        titles.addWidget(make_label("Sky Radar 2D", "title"))
-        self._mode = make_label("Mode North-Up (Utara Tetap)", "subtitle")
+        titles.addWidget(make_label(tr("radar.title"), "title"))
+        self._mode = make_label(tr("radar.mode_north"), "subtitle")
         titles.addWidget(self._mode)
         header.addLayout(titles, 1)
-        self._clear_path = make_button("✕  Hapus Jalur Lintasan", "outline")
+        self._clear_path = make_button(tr("radar.clear_path"), "outline")
         self._clear_path.setVisible(False)
         self._clear_path.clicked.connect(lambda: controller.select_pass(None))
         header.addWidget(self._clear_path, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -45,7 +46,7 @@ class RadarPage(QWidget):
         banner = QVBoxLayout(self._banner)
         banner.setContentsMargins(14, 8, 14, 8)
         banner.setSpacing(2)
-        self._banner_title = make_label("Memuat...", "heading")
+        self._banner_title = make_label(tr("radar.loading"), "heading")
         self._banner_sub = make_label("", "mono", TEXT_MUTED)
         banner.addWidget(self._banner_title)
         banner.addWidget(self._banner_sub)
@@ -58,16 +59,16 @@ class RadarPage(QWidget):
         # Heading control (desktops have no compass sensor)
         heading_row = QHBoxLayout()
         heading_row.setSpacing(12)
-        heading_row.addWidget(make_label("ARAH HADAP", "caption"))
+        heading_row.addWidget(make_label(tr("radar.heading"), "caption"))
         self._slider = QSlider(Qt.Orientation.Horizontal)
         self._slider.setRange(0, 359)
         self._slider.setValue(0)
         self._slider.valueChanged.connect(self._on_heading)
         heading_row.addWidget(self._slider, 1)
-        self._heading_label = make_label("0° (Utara)", "mono", CYAN)
+        self._heading_label = make_label(tr("radar.heading_value", deg=0, name=tr("compass.0")), "mono", CYAN)
         self._heading_label.setMinimumWidth(110)
         heading_row.addWidget(self._heading_label)
-        reset = make_button("Reset ke Utara")
+        reset = make_button(tr("radar.reset"))
         reset.clicked.connect(lambda: self._slider.setValue(0))
         heading_row.addWidget(reset)
         root.addLayout(heading_row)
@@ -76,16 +77,17 @@ class RadarPage(QWidget):
         strip = make_card()
         row = QHBoxLayout(strip)
         row.setContentsMargins(18, 12, 18, 12)
-        self._t_heading = self._stat(row, "ARAH HADAP", Qt.AlignmentFlag.AlignLeft)
-        self._t_az = self._stat(row, "AZIMUTH TARGET", Qt.AlignmentFlag.AlignHCenter)
-        self._t_el = self._stat(row, "ELEVASI TARGET", Qt.AlignmentFlag.AlignHCenter)
-        self._t_range = self._stat(row, "JARAK", Qt.AlignmentFlag.AlignRight)
+        self._t_heading = self._stat(row, tr("radar.heading"), Qt.AlignmentFlag.AlignLeft)
+        self._t_az = self._stat(row, tr("radar.t_az"), Qt.AlignmentFlag.AlignHCenter)
+        self._t_el = self._stat(row, tr("radar.t_el"), Qt.AlignmentFlag.AlignHCenter)
+        self._t_range = self._stat(row, tr("radar.t_range"), Qt.AlignmentFlag.AlignRight)
         root.addWidget(strip)
 
         controller.position_updated.connect(self._on_position)
         controller.selected_pass_changed.connect(self._on_pass_selected)
         self._on_position(controller.position)
         self._on_heading(0)
+        self._on_pass_selected(controller.selected_pass)
 
     @staticmethod
     def _stat(row: QHBoxLayout, title: str, align: Qt.AlignmentFlag):
@@ -105,11 +107,10 @@ class RadarPage(QWidget):
     def _on_heading(self, degrees: int) -> None:
         self._heading = degrees
         self._radar.set_heading(float(degrees))
-        compass = ["Utara", "Timur Laut", "Timur", "Tenggara", "Selatan", "Barat Daya", "Barat", "Barat Laut"]
-        name = compass[int((degrees + 22.5) // 45) % 8]
-        self._heading_label.setText(f"{degrees}° ({name})")
+        name = tr(f"compass.{int((degrees + 22.5) // 45) % 8}")
+        self._heading_label.setText(tr("radar.heading_value", deg=degrees, name=name))
         self._t_heading.setText(f"{degrees}°")
-        self._mode.setText("Mode North-Up (Utara Tetap)" if degrees == 0 else f"Mode Arah Hadap: {degrees}°")
+        self._mode.setText(tr("radar.mode_north") if degrees == 0 else tr("radar.mode_heading", deg=degrees))
         self._update_banner(self._controller.position)
 
     def _on_pass_selected(self, prediction: Optional[PassPrediction]) -> None:
@@ -137,7 +138,7 @@ class RadarPage(QWidget):
 
     def _update_banner(self, pos: Optional[SatellitePosition]) -> None:
         if pos is None:
-            self._banner_title.setText("Pilih satelit dari Katalog")
+            self._banner_title.setText(tr("radar.pick"))
             self._banner_sub.setText("")
             return
 
@@ -146,12 +147,12 @@ class RadarPage(QWidget):
         locked = visible and abs(diff) < _LOCK_THRESHOLD_DEG
 
         if locked:
-            title, color, border = "🎯 TARGET ACQUIRED! TEPAT DI DEPAN", GREEN, GREEN
+            title, color, border = tr("radar.locked"), GREEN, GREEN
         elif visible:
-            direction = "KANAN" if diff > 0 else "KIRI"
-            title, color, border = f"PUTAR KE {direction} {abs(int(diff))}°", "white", CYAN
+            key = "radar.turn_right" if diff > 0 else "radar.turn_left"
+            title, color, border = tr(key, deg=abs(int(diff))), "white", CYAN
         else:
-            title, color, border = "SATELIT BERADA DI BAWAH CAKRAWALA", AMBER, BORDER
+            title, color, border = tr("radar.below"), AMBER, BORDER
 
         self._banner_title.setText(title)
         set_text_color(self._banner_title, color)
