@@ -10,6 +10,7 @@ from typing import Callable, Optional
 
 from PySide6.QtCore import QObject, QRunnable, QSettings, QThreadPool, QTimer, Signal
 
+from mst.i18n import tr
 from mst.core.models import (
     GroundTrackPoint,
     ObserverLocation,
@@ -183,7 +184,8 @@ class AppController(QObject):
             self._active = self._by_id.get(norad_id, self._active)
             self.active_satellite_changed.emit(self._active)
 
-    def set_observer(self, latitude: float, longitude: float, altitude_m: float = 10.0, name: str = "Kustom") -> None:
+    def set_observer(self, latitude: float, longitude: float, altitude_m: float = 10.0, name: str = "") -> None:
+        name = name or tr("loc.custom")
         self._observer = ObserverLocation(
             max(-90.0, min(90.0, latitude)),
             ((longitude + 180.0) % 360.0) - 180.0,
@@ -231,7 +233,7 @@ class AppController(QObject):
             return
         self._syncing = True
         self.syncing_changed.emit(True)
-        self.sync_message_changed.emit(f"Mengunduh data TLE {category} dari CelesTrak...")
+        self.sync_message_changed.emit(tr("sync.downloading", category=category))
 
         worker = _Worker(("sync", group), lambda: self._repo.sync_from_celestrak(group, category))
         worker.signals.finished.connect(lambda token, result, c=category: self._on_sync_done(token, result, c))
@@ -272,7 +274,7 @@ class AppController(QObject):
     def _on_sync_done(self, token: object, result: object, category: str) -> None:
         self._workers.pop(token, None)
         self._reload_catalog()
-        self.sync_message_changed.emit(f"Berhasil memperbarui {result} satelit {category}")
+        self.sync_message_changed.emit(tr("sync.success", count=result, category=category))
         # Re-select the active satellite so it picks up its fresh TLE.
         if self._active is not None and self._active.norad_id in self._by_id:
             self.select_satellite(self._by_id[self._active.norad_id])
@@ -284,7 +286,7 @@ class AppController(QObject):
             if token == ("passes", self._pass_generation):
                 self.passes_calculating.emit(False)
             return
-        self.sync_message_changed.emit(f"Gagal: {message or 'Koneksi terputus'}")
+        self.sync_message_changed.emit(tr("sync.failed", message=message or tr("err.connection")))
         QTimer.singleShot(3500, self._finish_sync)
 
     def _finish_sync(self) -> None:
