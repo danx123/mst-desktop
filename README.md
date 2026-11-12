@@ -36,24 +36,44 @@ Requires Python 3.10+ and PySide6 6.6+.
 - **Sky Radar** — polar az/el plot, steering hints and target lock, plus the predicted pass path ("Buka Radar" on a pass card)
 - **Observer location** — Indonesian presets or manual coordinates (saved between runs)
 
-Desktops have no compass sensor, so the radar uses a **heading slider** instead of the phone's rotation sensor. Keyboard: `Ctrl+1..4` switches pages.
+Desktops have no compass sensor, so the radar uses a **heading slider** instead of the phone's rotation sensor.
+
+### Keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `F11` | Enter / toggle fullscreen |
+| `Esc` | Leave fullscreen |
+| `Ctrl+1` … `Ctrl+4` | Orbit Map / Catalog / Passes / Sky Radar |
+
+The sidebar also has a fullscreen button.
+
+### Languages
+
+The UI is available in **English** and **Bahasa Indonesia**. Pick one in the sidebar (bottom-left); it switches instantly, keeps your current page and window state, and is remembered between runs. On first launch the language follows your system locale (Indonesian locale → Indonesian, anything else → English).
+
+To add a language, add a column to every entry in `mst/i18n.py`; `tests/test_i18n.py` verifies that no key is missing and that placeholders match.
 
 ## Project layout
 
 ```
 main.py                     entry point
+satellite.ico               application icon (next to main.py)
+tools/make_icon.py          regenerates satellite.ico (multi-size)
 mst/
-  app.py                    bootstrap (DB + controller + window)
+  app.py                    bootstrap (DB, language, icon, controller, window)
+  i18n.py                   all UI strings (Indonesian + English)
+  resources.py              finds bundled files such as satellite.ico
   core/                     pure Python, no Qt — easy to test
     constants.py  models.py  tle.py  geo.py  propagator.py  passes.py
   data/                     persistence and network
     database.py  default_satellites.py  celestrak.py  repository.py
   ui/
-    theme.py  formatting.py  controller.py  main_window.py
+    theme.py  formatting.py  controller.py  main_window.py  window_host.py
     pages/      map_page  catalog_page  passes_page  radar_page
     widgets/    world_map  radar  telemetry  common  mapdata
     dialogs/    location_dialog  detail_dialog
-tests/test_core.py
+tests/test_core.py  tests/test_i18n.py
 ```
 
 Layers only depend downward: `ui → data → core`. `AppController` owns all state and exposes Qt signals; pages never talk to each other directly, they just observe the controller. Pass prediction and CelesTrak sync run on a thread pool, so the UI never blocks.
@@ -73,7 +93,10 @@ python -m unittest discover -s tests -v
 ## Build a standalone executable (Nuitka)
 
 ```bash
-python -m nuitka --standalone --enable-plugin=pyside6 --windows-console-mode=disable main.py
+python -m nuitka --standalone --enable-plugin=pyside6 --windows-console-mode=disable ^
+  --windows-icon-from-ico=satellite.ico --include-data-files=satellite.ico=satellite.ico main.py
 ```
+
+`--windows-icon-from-ico` sets the `.exe` icon; `--include-data-files` ships `satellite.ico` so the window and taskbar icon also work at runtime. (Use `\` instead of `^` for line continuation on Linux/macOS.)
 
 Data lives in the per-user app-data folder (`MacanAngkasa/MST`), and settings in `QSettings`.
