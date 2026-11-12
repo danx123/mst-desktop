@@ -24,25 +24,26 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from mst.i18n import tr
 from mst.core.models import Satellite
 from mst.data.celestrak import SYNC_GROUPS
 from mst.ui.controller import AppController
 from mst.ui.theme import AMBER, CYAN, TEXT_MUTED, TEXT_SECONDARY
 from mst.ui.widgets.common import make_button, make_card, make_label, make_page_root
 
-CATEGORIES = [
-    ("ALL", "Semua"),
-    ("FAVORITES", "Favorit"),
-    ("INDONESIA", "Indonesia"),
-    ("STATIONS", "Stasiun"),
-    ("WEATHER", "Cuaca"),
-    ("STARLINK", "Starlink"),
-    ("GEO", "Geostasioner"),
+CATEGORIES = [  # (category code, i18n key)
+    ("ALL", "cat.all"),
+    ("FAVORITES", "cat.favorites"),
+    ("INDONESIA", "cat.indonesia"),
+    ("STATIONS", "cat.stations"),
+    ("WEATHER", "cat.weather"),
+    ("STARLINK", "cat.starlink"),
+    ("GEO", "cat.geo"),
 ]
 
 
 class SatelliteTableModel(QAbstractTableModel):
-    HEADERS = ["★", "Nama Satelit", "NORAD ID", "Kategori"]
+    HEADER_KEYS = ["catalog.col_fav", "catalog.col_name", "catalog.col_norad", "catalog.col_category"]
 
     def __init__(self) -> None:
         super().__init__()
@@ -66,11 +67,11 @@ class SatelliteTableModel(QAbstractTableModel):
         return 0 if parent.isValid() else len(self._items)
 
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: B008
-        return 0 if parent.isValid() else len(self.HEADERS)
+        return 0 if parent.isValid() else len(self.HEADER_KEYS)
 
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            return self.HEADERS[section]
+            return tr(self.HEADER_KEYS[section])
         return None
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
@@ -105,7 +106,7 @@ class SatelliteTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.BackgroundRole and sat.norad_id == self._active_id:
             return QColor(0, 229, 255, 34)
         if role == Qt.ItemDataRole.ToolTipRole and col == 0:
-            return "Klik untuk tandai / hapus favorit"
+            return tr("catalog.fav_tip")
         return None
 
 
@@ -151,7 +152,7 @@ class CatalogPage(QWidget):
         header = QHBoxLayout()
         titles = QVBoxLayout()
         titles.setSpacing(2)
-        titles.addWidget(make_label("Katalog Satelit", "title"))
+        titles.addWidget(make_label(tr("catalog.title"), "title"))
         self._count = make_label("", "subtitle")
         titles.addWidget(self._count)
         header.addLayout(titles, 1)
@@ -162,8 +163,8 @@ class CatalogPage(QWidget):
         self._sync_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self._sync_button.setCursor(Qt.CursorShape.PointingHandCursor)
         menu = QMenu(self._sync_button)
-        for group, category, label in SYNC_GROUPS:
-            action = menu.addAction(label)
+        for group, category, label_key in SYNC_GROUPS:
+            action = menu.addAction(tr(label_key))
             action.triggered.connect(lambda _=False, g=group, c=category: controller.sync_celestrak(g, c))
         self._sync_button.setMenu(menu)
         header.addWidget(self._sync_button, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -180,7 +181,7 @@ class CatalogPage(QWidget):
 
         # Search
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Cari nama satelit atau NORAD ID...")
+        self._search.setPlaceholderText(tr("catalog.search"))
         self._search.setClearButtonEnabled(True)
         root.addWidget(self._search)
 
@@ -189,8 +190,8 @@ class CatalogPage(QWidget):
         chips.setSpacing(8)
         self._chip_group = QButtonGroup(self)
         self._chip_group.setExclusive(True)
-        for key, label in CATEGORIES:
-            chip = make_button(label, "chip", checkable=True)
+        for key, label_key in CATEGORIES:
+            chip = make_button(tr(label_key), "chip", checkable=True)
             chip.setProperty("category", key)
             chip.setChecked(key == "ALL")
             self._chip_group.addButton(chip)
@@ -223,9 +224,9 @@ class CatalogPage(QWidget):
 
         # Footer actions
         footer = QHBoxLayout()
-        footer.addWidget(make_label("Klik ★ untuk favorit • klik dua kali untuk melacak", "subtitle"))
+        footer.addWidget(make_label(tr("catalog.hint"), "subtitle"))
         footer.addStretch(1)
-        self._track_button = make_button("Lacak Satelit Terpilih", "primary")
+        self._track_button = make_button(tr("catalog.track"), "primary")
         footer.addWidget(self._track_button)
         root.addLayout(footer)
 
@@ -242,7 +243,7 @@ class CatalogPage(QWidget):
 
         controller.catalog_changed.connect(self._reload)
         controller.active_satellite_changed.connect(self._on_active)
-        controller.syncing_changed.connect(lambda busy: self._sync_button.setEnabled(not busy))
+        controller.syncing_changed.connect(self._on_syncing)
         controller.sync_message_changed.connect(self._on_sync_message)
 
         self._reload()
@@ -264,7 +265,7 @@ class CatalogPage(QWidget):
         self._update_count()
 
     def _update_count(self, *_args: object) -> None:
-        self._count.setText(f"{self._proxy.rowCount()} Satelit Tersedia (Offline Ready)")
+        self._count.setText(tr("catalog.count", n=self._proxy.rowCount()))
 
     def _satellite_at(self, proxy_index: QModelIndex) -> Satellite:
         return self._model.satellite_at(self._proxy.mapToSource(proxy_index).row())
@@ -285,6 +286,9 @@ class CatalogPage(QWidget):
     def _select(self, sat: Satellite) -> None:
         self._controller.select_satellite(sat)
         self.navigate_to_map.emit()
+
+    def _on_syncing(self, busy: bool) -> None:
+        self._sync_button.setEnabled(not busy)
 
     def _on_sync_message(self, message: str) -> None:
         self._banner.setVisible(bool(message))
