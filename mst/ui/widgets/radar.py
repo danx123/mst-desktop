@@ -9,6 +9,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QFont, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QWidget
 
+from mst.i18n import tr
 from mst.core.models import SatellitePosition
 from mst.ui.theme import AMBER, BLACK, CYAN, GREEN, SURFACE, TEXT_MUTED, qcolor
 
@@ -145,7 +146,8 @@ class RadarWidget(QWidget):
         font.setPointSizeF(10.0)
         font.setBold(True)
         p.setFont(font)
-        for label, az, color in (("U", 0, CYAN), ("T", 90, TEXT_MUTED), ("S", 180, TEXT_MUTED), ("B", 270, TEXT_MUTED)):
+        for label, az, color in ((tr("radar.card_n"), 0, CYAN), (tr("radar.card_e"), 90, TEXT_MUTED),
+                             (tr("radar.card_s"), 180, TEXT_MUTED), (tr("radar.card_w"), 270, TEXT_MUTED)):
             pos = self._sky_point(az, 0.0, radius + 18.0)
             p.save()
             p.translate(pos)
