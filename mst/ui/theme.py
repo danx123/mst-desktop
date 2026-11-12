@@ -77,6 +77,12 @@ QLineEdit, QDoubleSpinBox, QComboBox {{
 }}
 QLineEdit:focus, QDoubleSpinBox:focus, QComboBox:focus {{ border-color: {CYAN}; }}
 
+QComboBox::drop-down {{ border: none; width: 22px; }}
+QComboBox QAbstractItemView {{
+    background: {SURFACE}; color: white; border: 1px solid {BORDER};
+    selection-background-color: {CARD}; selection-color: {CYAN}; outline: 0;
+}}
+
 QTableView {{
     background: {SURFACE}; alternate-background-color: {SURFACE}; border: 1px solid {BORDER};
     border-radius: 10px; gridline-color: transparent;
