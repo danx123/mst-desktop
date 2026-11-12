@@ -5,17 +5,18 @@ import time
 import urllib.error
 import urllib.request
 
+from mst.i18n import tr
 from mst.core.models import Satellite
 
 BASE_URL = "https://celestrak.org/NORAD/elements/gp.php"
 USER_AGENT = "MST-MacanSatelliteTracker/1.0 (Desktop)"
 
-# (CelesTrak group, local category, menu label)
+# (CelesTrak group, local category, i18n key of the menu label)
 SYNC_GROUPS: list[tuple[str, str, str]] = [
-    ("stations", "STATIONS", "Sinkronkan Stasiun Luar Angkasa (ISS)"),
-    ("weather", "WEATHER", "Sinkronkan Satelit Cuaca (Weather)"),
-    ("starlink", "STARLINK", "Sinkronkan Starlink"),
-    ("geo", "GEO", "Sinkronkan Geostasioner (GEO)"),
+    ("stations", "STATIONS", "sync.stations"),
+    ("weather", "WEATHER", "sync.weather"),
+    ("starlink", "STARLINK", "sync.starlink"),
+    ("geo", "GEO", "sync.geo"),
 ]
 
 
@@ -56,12 +57,12 @@ def fetch_group(group: str, category: str, timeout: float = 15.0) -> list[Satell
         with urllib.request.urlopen(request, timeout=timeout) as response:
             body = response.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
-        raise CelesTrakError(f"HTTP error {exc.code}: {exc.reason}") from exc
+        raise CelesTrakError(tr("err.http", code=exc.code, reason=exc.reason)) from exc
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise CelesTrakError(str(getattr(exc, "reason", exc)) or "Koneksi terputus") from exc
+        raise CelesTrakError(str(getattr(exc, "reason", exc)) or tr("err.connection")) from exc
 
     satellites = parse_tle_response(body, category)
     if not satellites:
-        snippet = body.strip().splitlines()[0][:120] if body.strip() else "Respons kosong"
-        raise CelesTrakError(f"Tidak ada data TLE valid ({snippet})")
+        snippet = body.strip().splitlines()[0][:120] if body.strip() else tr("err.empty")
+        raise CelesTrakError(tr("err.no_tle", snippet=snippet))
     return satellites
