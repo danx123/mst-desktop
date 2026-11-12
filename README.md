@@ -1,8 +1,12 @@
 # 🛰️ MST Desktop — Macan Satellite Tracker
 
 Desktop edition of MST, written in **Python + PySide6**. Real-time satellite tracking, an offline-first TLE catalog, 48-hour pass prediction and a 2D sky radar.
+---
+
+<img width="1024" height="1536" alt="MST_ Jelajahi Langit Bersama Macan Angkasa" src="https://github.com/user-attachments/assets/bc7abfc8-5414-42ff-b4c9-7597da1dc6cf" />
 
 ---
+
 
 ## Screenshot
 
