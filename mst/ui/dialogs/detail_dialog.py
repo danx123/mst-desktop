@@ -7,6 +7,7 @@ from typing import Optional
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QDialog, QGridLayout, QHBoxLayout, QVBoxLayout, QWidget
 
+from mst.i18n import tr
 from mst.core.models import Satellite, SatellitePosition
 from mst.ui.controller import AppController
 from mst.ui.formatting import fmt_datetime
@@ -22,7 +23,7 @@ class SatelliteDetailDialog(QDialog):
     def __init__(self, controller: AppController, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._controller = controller
-        self.setWindowTitle("Detail Telemetri")
+        self.setWindowTitle(tr("detail.title"))
         self.setMinimumWidth(520)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
 
@@ -64,14 +65,14 @@ class SatelliteDetailDialog(QDialog):
         grid = QGridLayout()
         grid.setSpacing(10)
         self._cards = {
-            "latlon": TelemetryCard("LINTANG / BUJUR"),
-            "alt": TelemetryCard("KETINGGIAN ORBIT"),
-            "speed": TelemetryCard("KECEPATAN"),
-            "period": TelemetryCard("PERIODE ORBIT"),
-            "azel": TelemetryCard("AZIMUTH / ELEVASI"),
-            "range": TelemetryCard("JARAK KE PENGAMAT"),
-            "epoch": TelemetryCard("EPOCH TLE"),
-            "age": TelemetryCard("USIA TLE"),
+            "latlon": TelemetryCard(tr("detail.latlon")),
+            "alt": TelemetryCard(tr("detail.alt")),
+            "speed": TelemetryCard(tr("detail.speed")),
+            "period": TelemetryCard(tr("detail.period")),
+            "azel": TelemetryCard(tr("detail.azel")),
+            "range": TelemetryCard(tr("detail.range")),
+            "epoch": TelemetryCard(tr("detail.epoch")),
+            "age": TelemetryCard(tr("detail.age")),
         }
         for index, card in enumerate(self._cards.values()):
             grid.addWidget(card, index // 2, index % 2)
@@ -80,9 +81,9 @@ class SatelliteDetailDialog(QDialog):
         # Actions
         actions = QHBoxLayout()
         actions.setSpacing(12)
-        radar = make_button("Sky Radar", "outline")
+        radar = make_button(tr("detail.radar"), "outline")
         radar.clicked.connect(lambda: (self.close(), self.open_radar.emit()))
-        passes = make_button("Jadwal Lintasan", "primary")
+        passes = make_button(tr("detail.passes"), "primary")
         passes.clicked.connect(lambda: (self.close(), self.open_passes.emit()))
         actions.addWidget(radar)
         actions.addWidget(passes)
@@ -113,14 +114,14 @@ class SatelliteDetailDialog(QDialog):
         if tle is not None:
             self._cards["epoch"].set_value(fmt_datetime(tle.epoch_millis))
             age = tle.age_days(int(time.time() * 1000))
-            self._cards["age"].set_value(f"{age:.1f} hari")
+            self._cards["age"].set_value(tr("detail.days", v=age))
 
     def _on_position(self, pos: Optional[SatellitePosition]) -> None:
         if pos is None:
             return
         visible = pos.elevation_deg > 0
         self._banner_text.setText(
-            "SEDANG MELINTAS (TERLIHAT DI LANGIT)" if visible else "DI BAWAH CAKRAWALA (TIDAK TERLIHAT)"
+            tr("detail.vis_yes") if visible else tr("detail.vis_no")
         )
         set_text_color(self._banner_text, GREEN if visible else TEXT_SECONDARY)
         self._banner.setStyleSheet(
@@ -129,6 +130,6 @@ class SatelliteDetailDialog(QDialog):
         self._cards["latlon"].set_value(f"{pos.latitude:+.2f}° / {pos.longitude:+.2f}°")
         self._cards["alt"].set_value(f"{pos.altitude_km:.1f} km")
         self._cards["speed"].set_value(f"{pos.velocity_km_s:.2f} km/s")
-        self._cards["period"].set_value(f"{pos.period_minutes:.1f} menit")
+        self._cards["period"].set_value(tr("detail.minutes", v=pos.period_minutes))
         self._cards["azel"].set_value(f"{pos.azimuth_deg:.1f}° / {pos.elevation_deg:+.1f}°")
         self._cards["range"].set_value(f"{pos.range_km:.0f} km")
