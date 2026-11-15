@@ -1,17 +1,38 @@
-"""Orbit propagation: Keplerian motion with J2 secular perturbations.
+"""Orbit propagation with the full SGP4 / SDP4 model (via the ``sgp4`` package).
 
-This is a simplified model (no drag, no deep-space terms), not full SGP4.
-Accuracy degrades as the TLE gets older, so keep the catalog synced.
+The near-Earth (SGP4) and deep-space (SDP4: lunar-solar perturbations and
+12 h / 24 h resonances) branches are selected automatically from the TLE's
+orbital period. SGP4 works in the TEME frame; positions are rotated to ECEF
+with GMST (polar motion and nutation are ignored, well below TLE accuracy).
 """
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
 
-from mst.core.constants import EARTH_RADIUS_KM, J2, MU, TWO_PI
+from mst.core.constants import EARTH_RADIUS_KM
 from mst.core.geo import ObserverFrame, gmst_rad, subpoint
 from mst.core.models import GroundTrackPoint, ObserverLocation, SatellitePosition
 from mst.core.tle import ParsedTle
+
+_MS_PER_DAY = 86_400_000.0
+
+_SGP4_ERRORS = {
+    1: "mean eccentricity outside 0..1",
+    2: "mean motion is negative",
+    3: "perturbed eccentricity outside 0..1",
+    4: "semi-latus rectum is negative",
+    5: "epoch elements are sub-orbital",
+    6: "satellite has decayed",
+}
+
+
+class PropagationError(Exception):
+    """SGP4 could not propagate this TLE to the requested time."""
+
+    def __init__(self, code: int) -> None:
+        self.code = code
+        super().__init__(f"SGP4 error {code}: {_SGP4_ERRORS.get(code, 'unknown')}")
 
 
 @dataclass(frozen=True)
@@ -20,67 +41,38 @@ class EcefState:
     y: float
     z: float
     r: float  # distance from Earth's centre, km
-
-
-def solve_kepler(mean_anomaly: float, e: float) -> float:
-    big_e = mean_anomaly if e < 0.8 else math.pi
-    for _ in range(11):
-        f = big_e - e * math.sin(big_e) - mean_anomaly
-        f_prime = 1.0 - e * math.cos(big_e)
-        delta = f / f_prime
-        big_e -= delta
-        if abs(delta) < 1e-8:
-            break
-    return big_e
+    speed_km_s: float = 0.0  # inertial (TEME) speed
 
 
 class OrbitPropagator:
+    def propagate_teme(
+        self, tle: ParsedTle, time_millis: int
+    ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        """SGP4/SDP4 position (km) and velocity (km/s) in the TEME frame."""
+        days = time_millis / _MS_PER_DAY
+        whole = math.floor(days)
+        jd = 2440587.5 + whole  # UNIX epoch = JD 2440587.5
+        fr = days - whole
+        with tle.lock:
+            error, r, v = tle.satrec.sgp4(jd, fr)
+        if error:
+            raise PropagationError(error)
+        return r, v
+
     def propagate_ecef(self, tle: ParsedTle, time_millis: int) -> EcefState:
-        dt = (time_millis - tle.epoch_millis) / 1000.0
-        e = tle.eccentricity
-        a = tle.semi_major_axis_km
-        n = tle.mean_motion_rad_per_sec
-
-        p = a * (1.0 - e * e)
-        j2_term = 1.5 * J2 * (EARTH_RADIUS_KM / p) ** 2 * n
-        cos_i = math.cos(tle.inclination_rad)
-        sin_i = math.sin(tle.inclination_rad)
-
-        raan_dot = -j2_term * cos_i
-        arg_perigee_dot = 0.5 * j2_term * (5.0 * cos_i * cos_i - 1.0)
-
-        raan = math.fmod(tle.raan_rad + raan_dot * dt, TWO_PI)
-        arg_perigee = math.fmod(tle.arg_perigee_rad + arg_perigee_dot * dt, TWO_PI)
-        mean_anomaly = math.fmod(tle.mean_anomaly_rad + n * dt, TWO_PI)
-
-        big_e = solve_kepler(mean_anomaly, e)
-        cos_e, sin_e = math.cos(big_e), math.sin(big_e)
-        denom = 1.0 - e * cos_e
-
-        sin_nu = math.sqrt(1.0 - e * e) * sin_e / denom
-        cos_nu = (cos_e - e) / denom
-        nu = math.atan2(sin_nu, cos_nu)
-
-        r = a * denom
-        u = arg_perigee + nu
-        cu, su = math.cos(u), math.sin(u)
-        cr, sr = math.cos(raan), math.sin(raan)
-
-        x_eci = r * (cu * cr - su * sr * cos_i)
-        y_eci = r * (cu * sr + su * cr * cos_i)
-        z_eci = r * su * sin_i
-
+        (x, y, z), (vx, vy, vz) = self.propagate_teme(tle, time_millis)
         g = gmst_rad(time_millis)
         cg, sg = math.cos(g), math.sin(g)
-        x_ecef = x_eci * cg + y_eci * sg
-        y_ecef = -x_eci * sg + y_eci * cg
-        return EcefState(x_ecef, y_ecef, z_eci, r)
+        x_ecef = x * cg + y * sg
+        y_ecef = -x * sg + y * cg
+        r = math.sqrt(x * x + y * y + z * z)
+        speed = math.sqrt(vx * vx + vy * vy + vz * vz)
+        return EcefState(x_ecef, y_ecef, z, r, speed)
 
     def position(self, tle: ParsedTle, time_millis: int, observer: ObserverLocation) -> SatellitePosition:
         state = self.propagate_ecef(tle, time_millis)
         lat, lon, altitude = subpoint(state.x, state.y, state.z, state.r)
 
-        velocity = math.sqrt(MU * (2.0 / state.r - 1.0 / tle.semi_major_axis_km))
         period = 1440.0 / tle.mean_motion_rev_per_day
 
         horizon = math.acos(EARTH_RADIUS_KM / (EARTH_RADIUS_KM + altitude))
@@ -94,7 +86,7 @@ class OrbitPropagator:
             latitude=lat,
             longitude=lon,
             altitude_km=altitude,
-            velocity_km_s=velocity,
+            velocity_km_s=state.speed_km_s,
             azimuth_deg=az,
             elevation_deg=el,
             range_km=rng,
@@ -115,7 +107,10 @@ class OrbitPropagator:
         points: list[GroundTrackPoint] = []
         for i in range(steps + 1):
             t = start_millis + i * step_seconds * 1000
-            s = self.propagate_ecef(tle, t)
+            try:
+                s = self.propagate_ecef(tle, t)
+            except PropagationError:
+                continue  # skip samples past the point where the model breaks down
             lat, lon, alt = subpoint(s.x, s.y, s.z, s.r)
             points.append(GroundTrackPoint(lat, lon, alt, t))
         return points
