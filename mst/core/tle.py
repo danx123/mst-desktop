@@ -1,10 +1,12 @@
-"""Two-Line Element (TLE) parsing."""
+"""Two-Line Element (TLE) parsing and SGP4/SDP4 initialisation."""
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
+
+from sgp4.api import WGS72, Satrec
 
 from mst.core.constants import DEG_TO_RAD, MU, TWO_PI
 
@@ -25,9 +27,20 @@ class ParsedTle:
     mean_motion_rad_per_sec: float
     semi_major_axis_km: float
     bstar: float
+    # Initialised SGP4/SDP4 state. The model (near-Earth SGP4 or deep-space
+    # SDP4) is picked automatically from the orbital period. Deep-space
+    # resonance terms keep integrator state inside the record, so every call
+    # is serialised with ``lock`` (the UI tick and pass worker share it).
+    satrec: Satrec = field(repr=False, compare=False)
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def age_days(self, now_millis: int) -> float:
         return (now_millis - self.epoch_millis) / 86_400_000.0
+
+    @property
+    def is_deep_space(self) -> bool:
+        """True when the SDP4 deep-space model applies (period >= 225 min)."""
+        return self.satrec.method == "d"
 
 
 def _parse_bstar(text: str) -> float:
@@ -73,6 +86,9 @@ def parse_tle(name: str, line1: str, line2: str) -> Optional[ParsedTle]:
         n_rad_s = mean_motion * TWO_PI / 86_400.0
         semi_major = (MU / (n_rad_s * n_rad_s)) ** (1.0 / 3.0)
 
+        # TLEs are fitted with WGS-72 constants, so SGP4 must use them too.
+        satrec = Satrec.twoline2rv(l1, l2, WGS72)
+
         return ParsedTle(
             norad_id=norad_id,
             name=name.strip(),
@@ -88,6 +104,7 @@ def parse_tle(name: str, line1: str, line2: str) -> Optional[ParsedTle]:
             mean_motion_rad_per_sec=n_rad_s,
             semi_major_axis_km=semi_major,
             bstar=bstar,
+            satrec=satrec,
         )
     except (ValueError, IndexError, ZeroDivisionError):
         return None
