@@ -6,17 +6,12 @@ Desktop edition of MST, written in **Python + PySide6**. Real-time satellite tra
 <img width="1024" height="1536" alt="MST_ Jelajahi Langit Bersama Macan Angkasa" src="https://github.com/user-attachments/assets/bc7abfc8-5414-42ff-b4c9-7597da1dc6cf" />
 
 ---
-
-
 ## Screenshot
 
-<img width="1365" height="732" alt="Screenshot 2026-11-12 151137" src="https://github.com/user-attachments/assets/1c0dffcb-fa7a-456a-bcb0-f8f9e86e8a7b" />
-
-<img width="1365" height="734" alt="Screenshot 2026-11-12 151150" src="https://github.com/user-attachments/assets/48be276e-1c08-4205-87fc-ceb1d2e308ad" />
-
-<img width="1365" height="734" alt="Screenshot 2026-11-12 151157" src="https://github.com/user-attachments/assets/dcc390da-4651-4f83-8107-d6eff67d4362" />
-
-<img width="1365" height="733" alt="Screenshot 2026-11-12 151205" src="https://github.com/user-attachments/assets/784ed237-66a3-4a12-8170-89df106ad3fb" />
+<img width="1365" height="767" alt="image" src="https://github.com/user-attachments/assets/ff09676c-a577-440e-92ed-537fc540933a" />
+<img width="1365" height="767" alt="image" src="https://github.com/user-attachments/assets/5e0f68fd-3588-4e81-8f89-9c2b459982d9" />
+<img width="1365" height="767" alt="image" src="https://github.com/user-attachments/assets/d91e0da2-f512-42f8-b16f-3eaa6c825e37" />
+<img width="1365" height="767" alt="image" src="https://github.com/user-attachments/assets/ab46d814-2797-4f8e-a2dd-44a4a64ae73d" />
 
 ## Run
 
