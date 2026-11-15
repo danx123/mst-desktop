@@ -19,7 +19,7 @@ from mst.core.models import (
     SatellitePosition,
 )
 from mst.core.passes import PassPredictor
-from mst.core.propagator import OrbitPropagator
+from mst.core.propagator import OrbitPropagator, PropagationError
 from mst.core.tle import ParsedTle, parse_tle
 from mst.data.repository import SatelliteRepository
 
@@ -205,9 +205,12 @@ class AppController(QObject):
     def pass_path(self, prediction: PassPrediction) -> list[tuple[float, float]]:
         if self._tle is None:
             return []
-        return self._predictor.pass_path(
-            self._tle, self._observer, prediction.aos_time_millis, prediction.los_time_millis
-        )
+        try:
+            return self._predictor.pass_path(
+                self._tle, self._observer, prediction.aos_time_millis, prediction.los_time_millis
+            )
+        except PropagationError:
+            return []
 
     def calculate_passes(self) -> None:
         tle = self._tle
@@ -251,7 +254,17 @@ class AppController(QObject):
         if self._tle is None:
             return
         now = int(time.time() * 1000)
-        self._position = self._propagator.position(self._tle, now, self._observer)
+        try:
+            self._position = self._propagator.position(self._tle, now, self._observer)
+        except PropagationError:
+            # SGP4 gave up on this TLE (typically decayed / too old): show "no data".
+            had_data = self._position is not None or bool(self._track)
+            self._position = None
+            self._track = []
+            if had_data:
+                self.position_updated.emit(None)
+                self.ground_track_updated.emit([])
+            return
         self.position_updated.emit(self._position)
         if refresh_track or not self._track:
             self._track = self._propagator.ground_track(self._tle, now, 90, 90)
